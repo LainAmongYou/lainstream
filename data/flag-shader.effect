@@ -1,0 +1,83 @@
+uniform float4x4 ViewProj;
+uniform texture2d trans_flag;
+uniform texture2d lesbian_flag;
+uniform float wave_rot;
+uniform float pulse_rot;
+
+sampler_state def_sampler
+{
+	Filter = Point;
+	AddressU = Repeat;
+	AddressV = Repeat;
+};
+
+struct VertInOut {
+	float4 pos : POSITION;
+	float2 uv : TEXCOORD0;
+};
+
+/* the vertex shader doesn't do anything special. */
+VertInOut VSDraw(VertInOut vert_in)
+{
+	VertInOut vert_out;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv = vert_in.uv;
+	return vert_out;
+}
+
+/* Pixel Shader:                                           *
+ *                                                         *
+ * Draws a per-pixel waving flag over a single quad. Also  *
+ * pulsates, which kind of gives another wave aspect to it *
+ * (sort of like how a flag will wave in the wind, but in  *
+ * this case, it's just the engine output pulsating.       */
+float4 PSDraw(VertInOut vert_in) : TARGET
+{
+	const float ship_texture_cy = 32.0;
+	const float ship_size_cy_pixels = (ship_texture_cy * 3.0);
+	const float flag_quad_cy_pixels = 40.0 + ship_size_cy_pixels;
+	const float bob_diameter_pixels = 40.0;
+	const float bob_v_diameter =
+		bob_diameter_pixels / flag_quad_cy_pixels; // 0.294117647
+	const float bob_v_radius = bob_v_diameter * 0.5;   // 0.147058824
+	const float flagsize = 1.0 - bob_v_diameter;       // 0.705882353
+
+	/* I probably should be converting to radians on the cpu. */
+	const float rad_mul = 0.0174532925199432957692369076848;
+
+	float added_deg = vert_in.uv.x * -360.0 * 0.6;
+	float new_wave_rot = wave_rot + added_deg;
+	float wave_rot_cos = cos(new_wave_rot * rad_mul);
+	float wave_rot_offset =
+		(wave_rot_cos * 0.5 + 0.5) * (1.0 - 1.0 / flagsize);
+
+	float2 flag_uv = float2(0.5, 0.0);
+	flag_uv.y = vert_in.uv.y / flagsize;
+	flag_uv.y += wave_rot_offset;
+
+	float4 trans_color = trans_flag.Sample(def_sampler, flag_uv);
+	float4 lesbian_color = lesbian_flag.Sample(def_sampler, flag_uv);
+
+	float flag_transition = saturate((vert_in.uv.x - 0.4) / 0.2);
+	float4 color = lerp(trans_color, lesbian_color, flag_transition);
+
+	float vert_fade = abs((flag_uv.y - 0.5) * 2.0);
+	vert_fade = pow(saturate(1.0 - vert_fade), 0.4);
+
+	float horz_fade = abs((vert_in.uv.x - 0.5) * 2.0);
+	horz_fade = pow(saturate(1.0 - horz_fade), 0.4);
+
+	float pulsate = cos((pulse_rot + added_deg / 0.1) * rad_mul) * 0.08;
+	color.w = saturate(vert_fade * horz_fade * (1.4 - pulsate));
+
+	return color;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDraw(vert_in);
+		pixel_shader = PSDraw(vert_in);
+	}
+}
