@@ -16,7 +16,7 @@ branch for yourself for your stream build of OBS, then in the `plugins/`
 directory, clone this repo as a submodule, then in `plugins/CMakeLists.txt`,
 just add:
 ```cmake
-add_subdirectory(lainstream)
+add_obs_plugin(lainstream)
 ```
 at the bottom. Then build OBS and you'll have it with your OBS. Then the plugin
 will be available when you build!
